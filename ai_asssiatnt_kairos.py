@@ -27,8 +27,18 @@ below already resolved that reference to a real username, you may use it.
 
 If the user asks you to send/tell/message someone AND you can confidently
 resolve their exact username from the context or recent history, respond
-with ONLY a JSON object, no other text, in this exact shape:
+with ONLY a JSON object, no other text before or after it, no markdown
+code fences, no explanation — just the raw JSON, in this EXACT shape:
 {"action":"send_message","target_username":"<exact username from context>","draft":"<the message text you composed>","reply":"<short confirmation text to show the user>"}
+
+CRITICAL: If you intend to send a message, you MUST use this JSON format.
+Never reply in plain English saying something like "Ok, I'll send that" or
+"Sending now" without the JSON — a plain-text confirmation with no JSON
+means NOTHING actually gets sent, and the user will think it worked when
+it did not. If you are proposing to send a message, the JSON above is the
+ONLY way to make that happen. If you are not 100% sure of the exact
+target_username, do not use this JSON format at all — ask for clarification
+in plain text instead.
 
 If the user asks you to send a message but you are NOT sure which contact
 they mean (name doesn't clearly match anyone in context, or no name was
@@ -88,9 +98,22 @@ def ai():
                     target_username = parsed["target_username"]
                     draft = parsed["draft"]
                     reply = parsed.get("reply") or f"Ready to send to {target_username}: \"{draft}\""
-            except Exception:
-                pass
-
+                else:
+                    # NEW — the model returned JSON-shaped text but was
+                    # missing target_username or draft. Log it so we can
+                    # see WHY a send_message intent silently failed.
+                    print(f"⚠️ send_message JSON matched but incomplete: {parsed}")
+            except Exception as e:
+                # NEW — the regex found something JSON-*shaped* but it
+                # didn't actually parse (model added stray text/formatting
+                # around the JSON). This is exactly the "said ok but never
+                # sent" case — log the raw reply so we can see what broke.
+                print(f"⚠️ send_message JSON match failed to parse: {e} | raw reply: {reply[:300]}")
+        elif '"action"' in candidate or "send_message" in candidate.lower():
+            # NEW — the model clearly intended a send action (mentions it in
+            # plain text) but didn't emit valid JSON at all. Log this too —
+            # it's the "AI said ok in plain English" case.
+            print(f"⚠️ Model seemed to intend send_message but returned no JSON: {reply[:300]}")
     resp = {"reply": reply}
     if action == "send_message":
         resp["action"] = "send_message"

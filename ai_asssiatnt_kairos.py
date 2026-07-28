@@ -74,12 +74,14 @@ def ai():
                 messages.append({"role": role, "content": content[:2000]})
         messages.append({"role": "user", "content": text})
     completion = client.chat.completions.create(
-        model="llama-3.1-8b-instant",
+        model="openai/gpt-oss-120b",
         messages=messages,
         temperature=1,
         max_completion_tokens=2048,
         top_p=1,
         stream=False,
+        reasoning_effort="medium",
+
     )
     reply = completion.choices[0].message.content
 
